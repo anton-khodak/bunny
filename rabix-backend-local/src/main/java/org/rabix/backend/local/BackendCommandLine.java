@@ -73,6 +73,7 @@ import org.rabix.engine.stub.BackendStubFactory;
 import org.rabix.engine.stub.impl.BackendStubFactoryImpl;
 import org.rabix.executor.config.StorageConfiguration;
 import org.rabix.executor.config.impl.DefaultStorageConfiguration;
+import org.rabix.executor.config.impl.LocalStorageConfiguration;
 import org.rabix.executor.container.impl.DockerContainerHandler.DockerClientLockDecorator;
 import org.rabix.executor.execution.JobHandlerCommandDispatcher;
 import org.rabix.executor.handler.JobHandler;
@@ -244,7 +245,7 @@ public class BackendCommandLine {
             protected void configure() {
               install(configModule);
               
-              bind(StorageConfiguration.class).to(DefaultStorageConfiguration.class).in(Scopes.SINGLETON);
+              bind(StorageConfiguration.class).toInstance(new LocalStorageConfiguration(appPath, configModule.provideConfig()));
               bind(IntermediaryFilesService.class).to(IntermediaryFilesServiceImpl.class).in(Scopes.SINGLETON);
               bind(IntermediaryFilesHandler.class).to(IntermediaryFilesLocalHandler.class).in(Scopes.SINGLETON);
               
@@ -296,7 +297,7 @@ public class BackendCommandLine {
         logger.error("Not implemented feature");
         System.exit(33);
       } catch (BindingException e) {
-        logger.error("Error: " + appUrl + " is not a valid app!");
+        logger.error("Error: " + appUrl + " is not a valid app! {}", e.getMessage());
         System.exit(10);
       }
       if (application == null) {
@@ -315,7 +316,7 @@ public class BackendCommandLine {
       Map<String, Object> inputs;
       if (inputsFile != null) {
         String inputsText = readFile(inputsFile.getAbsolutePath(), Charset.defaultCharset());
-        inputs = JSONHelper.readMap(JSONHelper.transformToJSON(inputsText));
+        inputs = JSONHelper.readMap(JSONHelper.readJsonNode(inputsText));
       } else {
         inputs = new HashMap<>();
         // No inputs file. If we didn't provide -- at the end, just print app help and exit
