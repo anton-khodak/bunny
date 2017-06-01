@@ -21,6 +21,7 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.lang.StringUtils;
 import org.rabix.backend.local.download.LocalDownloadServiceImpl;
+import org.rabix.backend.local.slurm.service.SlurmExecutorServiceImpl;
 import org.rabix.backend.local.tes.client.TESHttpClient;
 import org.rabix.backend.local.tes.service.TESStorageService;
 import org.rabix.backend.local.tes.service.impl.LocalTESExecutorServiceImpl;
@@ -235,7 +236,8 @@ public class BackendCommandLine {
       }
       
       final boolean isTesEnabled = tesURL != null;
-      
+      boolean isSlurmEnabled = commandLine.hasOption("slurm");
+
       final ConfigModule configModule = new ConfigModule(configDir, configOverrides);
       Injector injector = Guice.createInjector(
           new SimpleFTPModule(),
@@ -244,11 +246,11 @@ public class BackendCommandLine {
             @Override
             protected void configure() {
               install(configModule);
-              
+
               bind(StorageConfiguration.class).toInstance(new LocalStorageConfiguration(appPath, configModule.provideConfig()));
               bind(IntermediaryFilesService.class).to(IntermediaryFilesServiceImpl.class).in(Scopes.SINGLETON);
               bind(IntermediaryFilesHandler.class).to(IntermediaryFilesLocalHandler.class).in(Scopes.SINGLETON);
-              
+
               bind(JobService.class).to(JobServiceImpl.class).in(Scopes.SINGLETON);
               bind(BackendService.class).to(BackendServiceImpl.class).in(Scopes.SINGLETON);
               bind(SchedulerService.class).to(SchedulerServiceImpl.class).in(Scopes.SINGLETON);
@@ -262,13 +264,17 @@ public class BackendCommandLine {
               bind(FilePathMapper.class).annotatedWith(InputFileMapper.class).to(LocalPathMapper.class);
               bind(FilePathMapper.class).annotatedWith(OutputFileMapper.class).to(LocalPathMapper.class);
               bind(BackendStubFactory.class).to(BackendStubFactoryImpl.class).in(Scopes.SINGLETON);
-              bind(new TypeLiteral<ReceiveCallback<Job>>(){}).to(JobReceiverImpl.class).in(Scopes.SINGLETON);
-              
+              bind(new TypeLiteral<ReceiveCallback<Job>>() {
+              }).to(JobReceiverImpl.class).in(Scopes.SINGLETON);
+
               if (isTesEnabled) {
                 bind(TESHttpClient.class).in(Scopes.SINGLETON);
                 bind(TESStorageService.class).to(LocalTESStorageServiceImpl.class).in(Scopes.SINGLETON);
                 bind(ExecutorService.class).to(LocalTESExecutorServiceImpl.class).in(Scopes.SINGLETON);
-              } else {
+              } else if (isSlurmEnabled){
+                bind(TESStorageService.class).to(LocalTESStorageServiceImpl.class).in(Scopes.SINGLETON);
+                bind(ExecutorService.class).to(SlurmExecutorServiceImpl.class).in(Scopes.SINGLETON);
+              } else{
                 install(new RetryInterceptorModule());
                 install(new FactoryModuleBuilder().implement(JobHandler.class, JobHandlerImpl.class).build(JobHandlerFactory.class));
 
@@ -530,6 +536,7 @@ public class BackendCommandLine {
     options.addOption(null, "outdir", true, "doesn't do anything");
     options.addOption(null, "quiet", false, "don't print anything except final result on standard output");
     options.addOption(null, "tes-url", true, "url of the ga4gh task execution server instance (experimental)");
+    options.addOption(null, "slurm", false, "run bunny on a slurm cluster (experimental)");
     options.addOption(null, "version", false, "print program version and exit");
     options.addOption("h", "help", false, "print this help message and exit");
     return options;
