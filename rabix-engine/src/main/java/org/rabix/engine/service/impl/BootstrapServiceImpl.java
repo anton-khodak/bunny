@@ -1,17 +1,17 @@
 package org.rabix.engine.service.impl;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
+import org.rabix.common.helper.JSONHelper;
 import org.rabix.engine.event.Event;
 import org.rabix.engine.processor.EventProcessor;
-import org.rabix.engine.repository.BackendRepository;
-import org.rabix.engine.repository.EventRepository;
-import org.rabix.engine.repository.TransactionHelper;
 import org.rabix.engine.service.BackendService;
 import org.rabix.engine.service.BootstrapService;
 import org.rabix.engine.service.BootstrapServiceException;
+import org.rabix.engine.store.repository.EventRepository;
+import org.rabix.engine.store.repository.TransactionHelper;
 import org.rabix.transport.backend.Backend;
-import org.rabix.transport.backend.Backend.BackendStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,16 +22,14 @@ public class BootstrapServiceImpl implements BootstrapService {
   private BackendService backendService;
   
   private EventRepository eventRepository;
-  private BackendRepository backendRepository;
   private TransactionHelper transactionHelper;
   
   private EventProcessor eventProcessor;
   private final static Logger logger = LoggerFactory.getLogger(BootstrapServiceImpl.class);
   
   @Inject
-  public BootstrapServiceImpl(TransactionHelper transactionHelper, EventRepository eventRepository, EventProcessor eventProcessor, BackendService backendService, BackendRepository backendRepository) {
+  public BootstrapServiceImpl(TransactionHelper transactionHelper, EventRepository eventRepository, EventProcessor eventProcessor, BackendService backendService) {
     this.backendService = backendService;
-    this.backendRepository = backendRepository;
     this.eventProcessor = eventProcessor;
     this.eventRepository = eventRepository;
     this.transactionHelper = transactionHelper;
@@ -42,14 +40,16 @@ public class BootstrapServiceImpl implements BootstrapService {
       transactionHelper.doInTransaction(new TransactionHelper.TransactionCallback<Void>() {
         @Override
         public Void call() throws Exception {
-          List<Backend> activeBackends = backendRepository.getByStatus(BackendStatus.ACTIVE);
+          List<Backend> activeBackends = backendService.getActiveBackends();
           
           for (Backend backend : activeBackends) {
             backendService.startBackend(backend);
             logger.debug("Awakening backend: " + backend.getId());
           }
           
-          List<Event> events = eventRepository.findUnprocessed();
+          List<Event> events = eventRepository.findUnprocessed().stream()
+              .map(er -> JSONHelper.convertToObject(er.getEvent(), Event.class))
+              .collect(Collectors.toList());
           
           for(Event event : events) {
             eventProcessor.addToExternalQueue(event);
