@@ -27,8 +27,13 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.lang.StringUtils;
 import org.rabix.backend.api.BackendModule;
+import org.rabix.backend.api.WorkerService;
 import org.rabix.backend.api.callback.WorkerStatusCallback;
 import org.rabix.backend.api.callback.impl.NoOpWorkerStatusCallback;
+import org.rabix.backend.slurm.client.SlurmClient;
+import org.rabix.backend.slurm.service.SlurmWorkerServiceImpl;
+import org.rabix.backend.tes.service.TESStorageService;
+import org.rabix.backend.tes.service.impl.LocalTESStorageServiceImpl;
 import org.rabix.cli.service.LocalDownloadServiceImpl;
 import org.rabix.backend.tes.TESModule;
 import org.rabix.bindings.BindingException;
@@ -211,8 +216,8 @@ public class BackendCommandLine {
           System.exit(-10);
         }
       }
-      
-      final ConfigModule configModule = new ConfigModule(configDir, configOverrides);
+
+        final ConfigModule configModule = new ConfigModule(configDir, configOverrides);
       Injector injector = Guice.createInjector(
           new EngineModule(configModule),
           new TESModule(configModule),
@@ -220,7 +225,6 @@ public class BackendCommandLine {
             @Override
             protected void configure() {
               install(configModule);
-              
               bind(IntermediaryFilesService.class).to(IntermediaryFilesServiceImpl.class).in(Scopes.SINGLETON);
               bind(IntermediaryFilesHandler.class).to(IntermediaryFilesLocalHandler.class).in(Scopes.SINGLETON);
               
@@ -247,6 +251,13 @@ public class BackendCommandLine {
                   System.exit(33);
                 }
               }
+              boolean slurmBackendEnabled = configModule.provideConfig().getBoolean("backend.slurm.enabled", false);
+                if (commandLine.hasOption("slurm")){
+                    bind(SlurmClient.class).in(Scopes.SINGLETON);
+                    bind(TESStorageService.class).to(LocalTESStorageServiceImpl.class).in(Scopes.SINGLETON);
+                    bind(WorkerService.class).annotatedWith(SlurmWorkerServiceImpl.SlurmWorker.class).to(SlurmWorkerServiceImpl.class).in(Scopes.SINGLETON);
+
+                }
             }
           });
 
@@ -486,6 +497,7 @@ public class BackendCommandLine {
     options.addOption(null, "outdir", true, "doesn't do anything");
     options.addOption(null, "quiet", false, "don't print anything except final result on standard output");
     options.addOption(null, "tes-url", true, "url of the ga4gh task execution server instance (experimental)");
+    options.addOption(null, "slurm", false, "enabling slurm backend");
     // TODO: implement useful cli overrides for config options
 //    options.addOption(null, "set-ownership", false, "");
 //    options.addOption(null, "ownership-uid", true, "");
