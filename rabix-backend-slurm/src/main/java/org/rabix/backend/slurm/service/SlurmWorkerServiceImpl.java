@@ -22,7 +22,9 @@ import org.rabix.bindings.BindingsFactory;
 import org.rabix.bindings.helper.FileValueHelper;
 import org.rabix.bindings.mapper.FilePathMapper;
 import org.rabix.bindings.model.Job;
+import org.rabix.bindings.model.requirement.FileRequirement;
 import org.rabix.bindings.model.requirement.Requirement;
+import org.rabix.common.helper.ChecksumHelper;
 import org.rabix.common.helper.JSONHelper;
 import org.rabix.common.logging.VerboseLogger;
 import org.rabix.transport.backend.Backend;
@@ -78,33 +80,29 @@ public class SlurmWorkerServiceImpl implements WorkerService {
     public SlurmWorkerServiceImpl(){
     }
 
-    private void success(Job job, SlurmJob slurmJob) {
+    @SuppressWarnings("unchecked")
+    private void success(Job job) {
         job = Job.cloneWithStatus(job, Job.JobStatus.COMPLETED);
-        Map<String, Object> result = null;
         try {
-            System.out.println("something something");
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to process output files: {}", e);
-        }
+            Bindings bindings = BindingsFactory.create(job);
+            String rootDir = configuration.getString("backend.execution.directory");
 
-        try {
-            result = storageService.transformOutputFiles(result, job.getRootId().toString(), job.getName());
+            File baseDir = new File(rootDir + "/" + job.getRootId() + "/" + job.getName().replace(".", "/"));
+            File workingDir = null;
+            for (File file: baseDir.listFiles()){
+                if (file.isDirectory()){
+                    workingDir = file;
+                }
+            }
+            job = bindings.postprocess(job, workingDir, ChecksumHelper.HashAlgorithm.SHA1, null);
+            //job = FileValueHelper.mapInputFilePaths(job,   (String path, Map<String, Object> config) -> path.replaceAll(workingDirTes, "").replaceAll(inputsTes, "")); //usualy not needed, but maybe
         } catch (BindingException e) {
-            logger.error("Failed to process output files", e);
-            throw new RuntimeException("Failed to process output files", e);
-        }
-
-        job = Job.cloneWithOutputs(job, result);
-        job = Job.cloneWithMessage(job, "Success");
-        try {
-            job = statusCallback.onJobCompleted(job);
-        } catch (WorkerStatusCallbackException e1) {
-            logger.warn("Failed to execute statusCallback: {}", e1);
+            logger.error("Failed to postprocess job", e);
         }
         engineStub.send(job);
     }
 
-    private void fail(Job job, SlurmJob slurmJob) {
+    private void fail(Job job) {
         job = Job.cloneWithStatus(job, Job.JobStatus.FAILED);
         try {
             job = statusCallback.onJobFailed(job);
@@ -138,9 +136,9 @@ public class SlurmWorkerServiceImpl implements WorkerService {
                         try {
                             SlurmJob slurmJob = pending.future.get();
                             if (slurmJob.getState().equals(SlurmState.Completed)) {
-                                success(pending.job, slurmJob);
+                                success(pending.job);
                             } else {
-                                fail(pending.job, slurmJob);
+                                fail(pending.job);
                             }
                             iterator.remove();
                         } catch (InterruptedException | ExecutionException e) {
@@ -177,16 +175,6 @@ public class SlurmWorkerServiceImpl implements WorkerService {
         pendingResults.add(new PendingResult(job, taskPoolExecutor.submit(new TaskRunCallable(job))));
     }
 
-    @SuppressWarnings("unchecked")
-    private <T extends Requirement> T getRequirement(List<Requirement> requirements, Class<T> clazz) {
-        for (Requirement requirement : requirements) {
-            if (requirement.getClass().equals(clazz)) {
-                return (T) requirement;
-            }
-        }
-        return null;
-    }
-
 
     public class TaskRunCallable implements Callable<SlurmJob> {
 
@@ -199,7 +187,6 @@ public class SlurmWorkerServiceImpl implements WorkerService {
         @Override
         public SlurmJob call() throws Exception {
             try {
-                List<String> initCommand = new ArrayList<>();
                 String rootDir = configuration.getString("backend.execution.directory");
                 File workingDir = new File(rootDir + "/" + job.getRootId() + "/" + job.getName().replace(".", "/"));
                 workingDir.mkdir();
@@ -209,13 +196,16 @@ public class SlurmWorkerServiceImpl implements WorkerService {
 
                 job = bindings.preprocess(job, storageService.stagingPath(job.getRootId().toString(), job.getName()).toFile(), null);
 
-
+//              TODO: delete ???
                 storageService.stagingPath(job.getRootId().toString(), job.getName(), "working_dir", "TODO");
                 storageService.stagingPath(job.getRootId().toString(), job.getName(), "inputs", "TODO");
 
                 job = storageService.transformInputFiles(job);
 
-
+                List<Requirement> combinedRequirements = new ArrayList<>();
+                combinedRequirements.addAll(bindings.getHints(job));
+                combinedRequirements.addAll(bindings.getRequirements(job));
+                stageFileRequirements(workingDir, combinedRequirements);
                 // Write job.json file
                 FileUtils.writeStringToFile(
                         storageService.stagingPath(job.getRootId().toString(), job.getName(), "inputs", "job.json").toFile(),
@@ -246,6 +236,54 @@ public class SlurmWorkerServiceImpl implements WorkerService {
             }
         }
 
+    }
+
+    private void stageFileRequirements(File workingDir, List<Requirement> requirements) throws BindingException {
+        try {
+            FileRequirement fileRequirementResource = getRequirement(requirements, FileRequirement.class);
+            if (fileRequirementResource == null) {
+                return;
+            }
+
+            List<FileRequirement.SingleFileRequirement> fileRequirements = fileRequirementResource.getFileRequirements();
+            if (fileRequirements == null) {
+                return;
+            }
+            for (FileRequirement.SingleFileRequirement fileRequirement : fileRequirements) {
+                logger.info("Process file requirement {}", fileRequirement);
+
+                File destinationFile = new File(workingDir, fileRequirement.getFilename());
+                if (fileRequirement instanceof FileRequirement.SingleTextFileRequirement) {
+                    FileUtils.writeStringToFile(destinationFile, ((FileRequirement.SingleTextFileRequirement) fileRequirement).getContent());
+                    continue;
+                }
+                if (fileRequirement instanceof FileRequirement.SingleInputFileRequirement || fileRequirement instanceof FileRequirement.SingleInputDirectoryRequirement) {
+                    String path = ((FileRequirement.SingleInputFileRequirement) fileRequirement).getContent().getPath();
+                    File file = new File(path);
+                    if (!file.exists()) {
+                        continue;
+                    }
+                    if (file.isFile()) {
+                        FileUtils.copyFile(file, destinationFile);
+                    } else {
+                        FileUtils.copyDirectory(file, destinationFile);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            logger.error("Failed to process file requirements.", e);
+            throw new BindingException("Failed to process file requirements.");
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends Requirement> T getRequirement(List<Requirement> requirements, Class<T> clazz) {
+        for (Requirement requirement : requirements) {
+            if (requirement.getClass().equals(clazz)) {
+                return (T) requirement;
+            }
+        }
+        return null;
     }
 
     @Override

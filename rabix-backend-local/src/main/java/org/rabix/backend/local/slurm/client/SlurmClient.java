@@ -70,7 +70,7 @@ public class SlurmClient {
             // Will be replaced when the execution side is handled
             String slurmCommand = "srun echo \"Bunny job received\"";
             slurmJobText += slurmCommand;
-            logger.debug("Sending slurm job");
+            logger.debug("Running slurm job");
             Runtime rt = Runtime.getRuntime();
             String command = "sbatch " + slurmJobPath;
             String s;
