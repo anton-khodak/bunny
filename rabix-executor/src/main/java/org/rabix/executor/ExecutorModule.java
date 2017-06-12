@@ -42,6 +42,7 @@ public class ExecutorModule extends BackendModule {
     String[] backendTypes = configuration.getStringArray("backend.embedded.types");
     for (String backendType : backendTypes) {
       if (backendType.trim().equalsIgnoreCase("SLURM") || backendType.trim().equalsIgnoreCase("TES")) {
+//      if (backendType.trim().equalsIgnoreCase("LOCAL") || backendType.trim().equalsIgnoreCase("TES")) {
         install(new LocalStorageModule(configModule));
         break;
       }
@@ -53,7 +54,7 @@ public class ExecutorModule extends BackendModule {
 //      bind(WorkerService.class).annotatedWith(LocalWorker.class).to(MockWorkerServiceImpl.class).in(Scopes.SINGLETON);
 //    } else if (slurmBackendEnabled) {
 //    } else {
-////        bind(WorkerService.class).annotatedWith(LocalWorker.class).to(WorkerServiceImpl.class).in(Scopes.SINGLETON);
+//        bind(WorkerService.class).annotatedWith(LocalWorker.class).to(WorkerServiceImpl.class).in(Scopes.SINGLETON);
 //      }
     
     bind(DockerClientLockDecorator.class).in(Scopes.SINGLETON);

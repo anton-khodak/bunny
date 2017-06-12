@@ -77,7 +77,7 @@ public class LocalTESStorageServiceImpl implements TESStorageService {
     path = containerPath("inputs", path).toString();
 
     fileValue.setLocation(location);
-    fileValue.setPath(path);
+//    fileValue.setPath(path);
     return fileValue;
   }
 

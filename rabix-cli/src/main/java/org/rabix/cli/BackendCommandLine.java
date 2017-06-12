@@ -251,7 +251,6 @@ public class BackendCommandLine {
                   System.exit(33);
                 }
               }
-              boolean slurmBackendEnabled = configModule.provideConfig().getBoolean("backend.slurm.enabled", false);
                 if (commandLine.hasOption("slurm")){
                     bind(SlurmClient.class).in(Scopes.SINGLETON);
                     bind(TESStorageService.class).to(LocalTESStorageServiceImpl.class).in(Scopes.SINGLETON);

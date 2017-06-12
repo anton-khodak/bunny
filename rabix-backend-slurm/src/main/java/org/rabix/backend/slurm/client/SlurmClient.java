@@ -1,8 +1,7 @@
 package org.rabix.backend.slurm.client;
 
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.commons.io.FileUtils;
+import org.rabix.backend.slurm.helpers.CWLJobInputsWriter;
 import org.rabix.backend.slurm.model.SlurmJob;
 import org.rabix.bindings.BindingException;
 import org.rabix.bindings.Bindings;
@@ -10,7 +9,6 @@ import org.rabix.bindings.BindingsFactory;
 import org.rabix.bindings.model.Job;
 import org.rabix.bindings.model.requirement.ResourceRequirement;
 import org.rabix.common.helper.EncodingHelper;
-import org.rabix.common.helper.JSONHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,15 +27,19 @@ public class SlurmClient {
         return;
     }
 
-    public SlurmJob getJob(String slurmJobId) throws SlurmClientException{
+    public SlurmJob getJob(String slurmJobId) throws SlurmClientException {
+        SlurmJob defaultSlurmJob = new SlurmJob("E");
         try {
+            Thread.sleep(2500);
             Runtime rt = Runtime.getRuntime();
             String command = "squeue -h -t all -j " + slurmJobId;
             // mock command
-            // String result = "15     debug slurm-jo  vagrant  CD       0:00      1 server";
-            //  String command = "echo " + result;
+//            String result = "15     debug slurm-jo  vagrant  CD       0:00      1 server";
+//            String command = "echo " + result;
             String[] s;
             Process proc = rt.exec(command);
+            logger.debug("Sending command: \n" + command);
+
             BufferedReader stdInput = new BufferedReader(new
                     InputStreamReader(proc.getInputStream()));
             // example output line:
@@ -48,8 +50,8 @@ public class SlurmClient {
             logger.debug("Pinging slurm queue: \n" + output);
             s = output.split("\\s+");
             // Mock squeue output
-            // String result = "15     debug slurm-jo  vagrant  CD       0:00      1 server";
-            // s = result.split("\\s+");
+//             String result = "15     debug slurm-jo  vagrant  CD       0:00      1 server";
+//             s = result.split("\\s+");
             String jobState = s[4];
             SlurmJob slurmJob = new SlurmJob(jobState);
             return slurmJob;
@@ -57,49 +59,52 @@ public class SlurmClient {
         } catch (IOException e) {
             logger.error("Could not open job file");
             throw new SlurmClientException("Failed to get ServiceInfo entity", e);
-
-//            e.printStackTrace(System.err);
-//            System.exit(10);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
-
+        return defaultSlurmJob;
     }
+
 
     public String runJob(Job job, File workingDir) {
         String output = "";
         String jobId = "";
         try {
             Bindings bindings = BindingsFactory.create(job);
-
-            String slurmJobText = "#!/bin/sh\n";
-
+            String slurmCommand = "sbatch -Q -J bunny_job_" + job.getName().replace(".", "_");
             ResourceRequirement resourceRequirements = bindings.getResourceRequirement(job);
-            String slurmDirective = getSlurmResourceRequirements(resourceRequirements);
-            slurmJobText += slurmDirective;
-            // Will be replaced when the execution side is handled
-            String slurmCommand = "srun echo \"Bunny job received\"";
-            slurmJobText += slurmCommand;
+            String resourceDirectives = getSlurmResourceRequirements(resourceRequirements);
+            slurmCommand += resourceDirectives;
             logger.debug("Sending slurm job");
             Runtime rt = Runtime.getRuntime();
 
-            // Write job.json file
             String cwlJob = EncodingHelper.decodeBase64(job.getApp());
-            FileUtils.writeStringToFile(
-                    workingDir,
-                    JSONHelper.writeObject(cwlJob)
-            );
-            String command = "sbatch ";
+            cwlJob = stripLeadingJSONCharacters(cwlJob);
+            File cwlJobFile = new File(workingDir, "job.json");
+            FileUtils.writeStringToFile(cwlJobFile, cwlJob);
+
+            File inputsFile = CWLJobInputsWriter.createInputsFile(job, workingDir);
+//            String bunnyCLIPath = "java -jar /media/anton/ECFA959BFA95631E2/Programming/SevenBridges/bunny/rabix-cli/test-target/rabix-cli-1.0.0-rc5.jar --configuration-dir /media/anton/ECFA959BFA95631E2/Programming/SevenBridges/bunny/rabix-cli/config2";
+            String bunnyCLIPath = "java -jar /vagrant/rabix-cli/test-target/rabix-cli-1.0.0-rc5.jar --configuration-dir /vagrant/rabix-cli/config2";
+            String command = bunnyCLIPath + " " + cwlJobFile.getAbsolutePath() + " " + inputsFile.getAbsolutePath();
+            command = command.replace("media/anton/ECFA959BFA95631E2/Programming/SevenBridges/bunny/examples/", "vagrant/");
+            slurmCommand += " --wrap=\"" + command + "\"";
             String s;
+            logger.debug("Submitting command: " + slurmCommand);
             // Mock command
-            // s = "Submitted batch job 16";
-            // String command = "echo " + s;
-            Process proc = rt.exec(command);
+            // String command = "echo Submitted batch job 16";
+//            Process proc = rt.exec(command);
+            Process proc = rt.exec(slurmCommand);
+//            BufferedReader stdError = new BufferedReader(new
+//                    InputStreamReader(proc.getErrorStream()));
+            Thread.sleep(1500);
             BufferedReader stdInput = new BufferedReader(new
                     InputStreamReader(proc.getInputStream()));
-            BufferedReader stdError = new BufferedReader(new
-                    InputStreamReader(proc.getErrorStream()));
-            int i = 0;
+            logger.debug("input stream obtained");
             while ((s = stdInput.readLine()) != null) {
-                if (i == 0) {
+                logger.debug("String: " + s);
+
+                if (s.startsWith("Submitted")) {
                     // Example output (in case of success): "Submitted batch job 16"
                     // TODO: handle errors
                     String pattern = "job\\s*\\d*";
@@ -107,11 +112,11 @@ public class SlurmClient {
                     Matcher m = r.matcher(s);
                     if (m.find()) {
                         jobId = m.group(0).split("\\s")[1];
+                        logger.debug("Submitted job " + jobId);
                     }else {
                         logger.debug("Submission went unsuccessfully");
                     }
                     output += s;
-                    i++;
                 }
             }
         } catch(IOException e){
@@ -122,30 +127,47 @@ public class SlurmClient {
             logger.error("Failed to use Bindings", e);
             e.printStackTrace(System.err);
             System.exit(11);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
         return jobId;
     }
 
     private static String getSlurmResourceRequirements(ResourceRequirement requirements){
-        final String batchDirective = "#SBATCH";
         String directive = "";
         if (requirements != null) {
             Long cpuMin = requirements.getCpuMin();
             Long memMin = requirements.getMemMinMB();
             if (cpuMin != null) {
-                directive += batchDirective + " --ntasks-per-node=" + Long.toString(cpuMin) + "\n";
+                directive += " --ntasks-per-node=" + Long.toString(cpuMin);
             }
             if (memMin != null) {
-                directive += batchDirective + " --mem=" + Long.toString(memMin) + "\n";
+                directive += " --mem=" + Long.toString(memMin);
             }
         }
         return directive;
     }
 
-    // move to a separate class
-    private static void writeInputs(Job job, File baseDir){
-        // writes intermediate CWL inputs to
+    /**
+     * Factory method for replacing a regexp pattern in a string
+     */
+    public static String regexpReplacer(String source, String pattern, String replacer){
+        Pattern r = Pattern.compile(pattern);
+        Matcher m = r.matcher(source);
+        if (m.find( )) {
+            source = source.replace(m.group(0), replacer);
         }
+        return source;
+    }
+
+    /**
+     * replaces garbage symbols at the beginning of base64 decoded app
+     * @param jsonSource     decoded app
+     * @return input string with stripped garbage symbols
+     */
+    private static String stripLeadingJSONCharacters(String jsonSource){
+        String pattern = "^.+(?=\\{)";
+        return regexpReplacer(jsonSource, pattern, "");
     }
 
 }
