@@ -34,9 +34,13 @@ public class CWLJobInputsWriter {
                 ((ObjectNode) childNode2).put("class", "File");
                 ((ObjectNode) childNode2).put("path", value.getPath());
                 ((ObjectNode) rootNode).set(input.getKey(), childNode2);
+            } else if (objectValue instanceof String){
+                String value = (String) objectValue;
+                ((ObjectNode) rootNode).put(input.getKey(), value);
             } else if (objectValue instanceof Boolean){
 
             }else{
+                logger.error("Not implemented input type: " + input.toString());
                 throw new NotImplementedException();
             }
         }

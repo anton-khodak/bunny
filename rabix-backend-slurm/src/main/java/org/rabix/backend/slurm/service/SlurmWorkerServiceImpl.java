@@ -193,14 +193,7 @@ public class SlurmWorkerServiceImpl implements WorkerService {
                 Bindings bindings = BindingsFactory.create(job);
                 FilePathMapper filePathMapper = (String path, Map<String, Object> config) -> path.startsWith("/") ? path : rootDir + "/" + path;
                 job = FileValueHelper.mapInputFilePaths(job, filePathMapper);
-
                 job = bindings.preprocess(job, storageService.stagingPath(job.getRootId().toString(), job.getName()).toFile(), null);
-
-//              TODO: delete ???
-                storageService.stagingPath(job.getRootId().toString(), job.getName(), "working_dir", "TODO");
-                storageService.stagingPath(job.getRootId().toString(), job.getName(), "inputs", "TODO");
-
-                job = storageService.transformInputFiles(job);
 
                 List<Requirement> combinedRequirements = new ArrayList<>();
                 combinedRequirements.addAll(bindings.getHints(job));
@@ -214,7 +207,6 @@ public class SlurmWorkerServiceImpl implements WorkerService {
 
 
                 String slurmJobId = slurmClient.runJob(job, workingDir);
-
                 SlurmJob slurmJob;
                 do {
                     Thread.sleep(1000L);

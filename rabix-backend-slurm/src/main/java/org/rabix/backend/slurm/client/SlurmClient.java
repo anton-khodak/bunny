@@ -30,18 +30,26 @@ public class SlurmClient {
     public SlurmJob getJob(String slurmJobId) throws SlurmClientException {
         SlurmJob defaultSlurmJob = new SlurmJob("E");
         try {
-            Thread.sleep(2500);
-            Runtime rt = Runtime.getRuntime();
             String command = "squeue -h -t all -j " + slurmJobId;
             // mock command
-//            String result = "15     debug slurm-jo  vagrant  CD       0:00      1 server";
-//            String command = "echo " + result;
+            String result = "15     debug slurm-jo  vagrant  CD       0:00      1 server";
+            String mockCommand = "echo " + result;
             String[] s;
-            Process proc = rt.exec(command);
+
+            File commandFile = new File("command.sh");
+            FileUtils.writeStringToFile(commandFile, command);
+            String[] commands = {"bash","command.sh"};
+            ProcessBuilder pb = new ProcessBuilder(commands);
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+//            Process proc = rt.exec(command);
+            Thread.sleep(1000);
+//            Process proc = rt.exec(mockCommand);
+//            logger.debug("Sending command: \n" + command);
             logger.debug("Sending command: \n" + command);
 
             BufferedReader stdInput = new BufferedReader(new
-                    InputStreamReader(proc.getInputStream()));
+                    InputStreamReader(p.getInputStream()));
             // example output line:
             //      14     debug job-tran  vagrant   F       0:00      1 (NonZeroExitCode)
             // Explanation:
@@ -76,7 +84,6 @@ public class SlurmClient {
             String resourceDirectives = getSlurmResourceRequirements(resourceRequirements);
             slurmCommand += resourceDirectives;
             logger.debug("Sending slurm job");
-            Runtime rt = Runtime.getRuntime();
 
             String cwlJob = EncodingHelper.decodeBase64(job.getApp());
             cwlJob = stripLeadingJSONCharacters(cwlJob);
@@ -91,15 +98,23 @@ public class SlurmClient {
             slurmCommand += " --wrap=\"" + command + "\"";
             String s;
             logger.debug("Submitting command: " + slurmCommand);
+            File commandFile = new File("command.sh");
+            FileUtils.writeStringToFile(commandFile, slurmCommand);
+            String[] commands = {"bash","command.sh"};
+            ProcessBuilder pb = new ProcessBuilder(commands);
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+
             // Mock command
-            // String command = "echo Submitted batch job 16";
+//             String command = "echo Submitted batch job 16";
 //            Process proc = rt.exec(command);
-            Process proc = rt.exec(slurmCommand);
+//            Process proc = rt.exec(slurmCommand);
 //            BufferedReader stdError = new BufferedReader(new
 //                    InputStreamReader(proc.getErrorStream()));
-            Thread.sleep(1500);
+//            Thread.sleep(1500);
+
             BufferedReader stdInput = new BufferedReader(new
-                    InputStreamReader(proc.getInputStream()));
+                    InputStreamReader(p.getInputStream()));
             logger.debug("input stream obtained");
             while ((s = stdInput.readLine()) != null) {
                 logger.debug("String: " + s);
@@ -127,8 +142,6 @@ public class SlurmClient {
             logger.error("Failed to use Bindings", e);
             e.printStackTrace(System.err);
             System.exit(11);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
         }
         return jobId;
     }
@@ -142,7 +155,7 @@ public class SlurmClient {
                 directive += " --ntasks-per-node=" + Long.toString(cpuMin);
             }
             if (memMin != null) {
-                directive += " --mem=" + Long.toString(memMin);
+//                directive += " --mem=" + Long.toString(memMin);
             }
         }
         return directive;
