@@ -80,7 +80,6 @@ public class SlurmWorkerServiceImpl implements WorkerService {
     public SlurmWorkerServiceImpl(){
     }
 
-    @SuppressWarnings("unchecked")
     private void success(Job job) {
         job = Job.cloneWithStatus(job, Job.JobStatus.COMPLETED);
         try {
@@ -95,7 +94,6 @@ public class SlurmWorkerServiceImpl implements WorkerService {
                 }
             }
             job = bindings.postprocess(job, workingDir, ChecksumHelper.HashAlgorithm.SHA1, null);
-            //job = FileValueHelper.mapInputFilePaths(job,   (String path, Map<String, Object> config) -> path.replaceAll(workingDirTes, "").replaceAll(inputsTes, "")); //usualy not needed, but maybe
         } catch (BindingException e) {
             logger.error("Failed to postprocess job", e);
         }

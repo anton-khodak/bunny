@@ -42,10 +42,7 @@ public class SlurmClient {
             ProcessBuilder pb = new ProcessBuilder(commands);
             pb.redirectErrorStream(true);
             Process p = pb.start();
-//            Process proc = rt.exec(command);
             Thread.sleep(1000);
-//            Process proc = rt.exec(mockCommand);
-//            logger.debug("Sending command: \n" + command);
             logger.debug("Sending command: \n" + command);
 
             BufferedReader stdInput = new BufferedReader(new
@@ -92,9 +89,10 @@ public class SlurmClient {
 
             File inputsFile = CWLJobInputsWriter.createInputsFile(job, workingDir);
 //            String bunnyCLIPath = "java -jar /media/anton/ECFA959BFA95631E2/Programming/SevenBridges/bunny/rabix-cli/test-target/rabix-cli-1.0.0-rc5.jar --configuration-dir /media/anton/ECFA959BFA95631E2/Programming/SevenBridges/bunny/rabix-cli/config2";
+            // TODO: add option for specifying shared file storage location
             String bunnyCLIPath = "java -jar /vagrant/rabix-cli/test-target/rabix-cli-1.0.0-rc5.jar --configuration-dir /vagrant/rabix-cli/config2";
             String command = bunnyCLIPath + " " + cwlJobFile.getAbsolutePath() + " " + inputsFile.getAbsolutePath();
-            command = command.replace("media/anton/ECFA959BFA95631E2/Programming/SevenBridges/bunny/examples/", "vagrant/");
+//            command = command.replace("media/anton/ECFA959BFA95631E2/Programming/SevenBridges/bunny/examples/", "vagrant/");
             slurmCommand += " --wrap=\"" + command + "\"";
             String s;
             logger.debug("Submitting command: " + slurmCommand);
@@ -162,7 +160,7 @@ public class SlurmClient {
     }
 
     /**
-     * Factory method for replacing a regexp pattern in a string
+     * method for replacing a regexp pattern in a string
      */
     public static String regexpReplacer(String source, String pattern, String replacer){
         Pattern r = Pattern.compile(pattern);
