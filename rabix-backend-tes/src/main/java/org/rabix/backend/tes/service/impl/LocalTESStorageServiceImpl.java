@@ -58,7 +58,7 @@ public class LocalTESStorageServiceImpl implements TESStorageService {
       // location is not a URI, treat as path on local file system
 
       if (!Paths.get(location).isAbsolute()) {
-        // location is a relative path. Prefix it with workflow execution dir,
+        // location is a relative patаh. Prefix it with workflow execution dir,
         // which is usually the directory the CWL file is in.
         location = Paths.get(localFileStorage.getBaseDir(), location).toAbsolutePath().toString();
       }
@@ -77,7 +77,7 @@ public class LocalTESStorageServiceImpl implements TESStorageService {
     path = containerPath("inputs", path).toString();
 
     fileValue.setLocation(location);
-//    fileValue.setPath(path);
+    fileValue.setPath(path);
     return fileValue;
   }
 

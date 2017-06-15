@@ -38,24 +38,21 @@ public class ExecutorModule extends BackendModule {
     install(new FactoryModuleBuilder().implement(JobHandler.class, JobHandlerImpl.class).build(JobHandlerFactory.class));
 
     Configuration configuration = configModule.provideConfig();
-    
+
     String[] backendTypes = configuration.getStringArray("backend.embedded.types");
     for (String backendType : backendTypes) {
-      if (backendType.trim().equalsIgnoreCase("SLURM") || backendType.trim().equalsIgnoreCase("TES")) {
-//      if (backendType.trim().equalsIgnoreCase("LOCAL") || backendType.trim().equalsIgnoreCase("TES")) {
+      if (backendType.trim().equalsIgnoreCase("LOCAL") || backendType.trim().equalsIgnoreCase("SLURM")) {
         install(new LocalStorageModule(configModule));
         break;
       }
     }
-//
-//    boolean mockBackendEnabled = configuration.getBoolean("backend.mock.enabled", false);
-//    boolean slurmBackendEnabled = configuration.getBoolean("backend.slurm.enabled", false);
-//    if (mockBackendEnabled) {
-//      bind(WorkerService.class).annotatedWith(LocalWorker.class).to(MockWorkerServiceImpl.class).in(Scopes.SINGLETON);
-//    } else if (slurmBackendEnabled) {
-//    } else {
-//        bind(WorkerService.class).annotatedWith(LocalWorker.class).to(WorkerServiceImpl.class).in(Scopes.SINGLETON);
-//      }
+
+    boolean mockBackendEnabled = configuration.getBoolean("backend.mock.enabled", false);
+    if (mockBackendEnabled) {
+      bind(WorkerService.class).annotatedWith(LocalWorker.class).to(MockWorkerServiceImpl.class).in(Scopes.SINGLETON);
+    } else {
+      bind(WorkerService.class).annotatedWith(LocalWorker.class).to(WorkerServiceImpl.class).in(Scopes.SINGLETON);
+    }
     
     bind(DockerClientLockDecorator.class).in(Scopes.SINGLETON);
 
