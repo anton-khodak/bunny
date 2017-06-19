@@ -58,6 +58,8 @@ import org.rabix.common.service.upload.UploadService;
 import org.rabix.common.service.upload.impl.NoOpUploadServiceImpl;
 import org.rabix.engine.EngineModule;
 import org.rabix.engine.service.BackendService;
+import org.rabix.engine.service.BootstrapService;
+import org.rabix.engine.service.BootstrapServiceException;
 import org.rabix.engine.service.ContextRecordService;
 import org.rabix.engine.service.IntermediaryFilesHandler;
 import org.rabix.engine.service.IntermediaryFilesService;
@@ -68,6 +70,7 @@ import org.rabix.engine.service.SchedulerService.SchedulerJobBackendAssigner;
 import org.rabix.engine.service.SchedulerService.SchedulerMessageCreator;
 import org.rabix.engine.service.SchedulerService.SchedulerMessageSender;
 import org.rabix.engine.service.impl.BackendServiceImpl;
+import org.rabix.engine.service.impl.BootstrapServiceImpl;
 import org.rabix.engine.service.impl.IntermediaryFilesLocalHandler;
 import org.rabix.engine.service.impl.IntermediaryFilesServiceImpl;
 import org.rabix.engine.service.impl.JobReceiverImpl;
@@ -251,12 +254,7 @@ public class BackendCommandLine {
                   System.exit(33);
                 }
               }
-                if (commandLine.hasOption("slurm")){
-                    bind(SlurmClient.class).in(Scopes.SINGLETON);
-                    bind(TESStorageService.class).to(LocalTESStorageServiceImpl.class).in(Scopes.SINGLETON);
-                    bind(WorkerService.class).annotatedWith(SlurmWorkerServiceImpl.SlurmWorker.class).to(SlurmWorkerServiceImpl.class).in(Scopes.SINGLETON);
-
-                }
+              bind(BootstrapService.class).to(BootstrapServiceImpl.class).in(Scopes.SINGLETON);
             }
           });
 
@@ -383,12 +381,12 @@ public class BackendCommandLine {
         }
       }
 
-      final SchedulerService schedulerService = injector.getInstance(SchedulerService.class);
+      final BootstrapService bootstrapService = injector.getInstance(BootstrapService.class);
       
       final JobService jobService = injector.getInstance(JobService.class);
       final ContextRecordService contextRecordService = injector.getInstance(ContextRecordService.class);
       
-      schedulerService.start();
+      bootstrapService.start();
       Object commonInputs = null;
       try {
         commonInputs = bindings.translateToCommon(inputs);
@@ -446,6 +444,9 @@ public class BackendCommandLine {
       logger.error("Encountered an error while reading a file.", e);
       System.exit(10);
     } catch (JobServiceException | InterruptedException e) {
+      logger.error("Encountered an error while starting local backend.", e);
+      System.exit(10);
+    } catch (BootstrapServiceException e) {
       logger.error("Encountered an error while starting local backend.", e);
       System.exit(10);
     }
