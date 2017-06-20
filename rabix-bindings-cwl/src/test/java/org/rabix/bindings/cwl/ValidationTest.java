@@ -44,12 +44,6 @@ public class ValidationTest {
     BeanSerializer.deserialize(inputJson, CWLJobApp.class);
   }
 
-  @Test(expectedExceptions = IllegalStateException.class)
-  public void testWrongType()  throws Exception {
-    String inputJson = ResourceHelper.readResource(this.getClass(), "bad-success-codes.cwl");
-    CWLJobApp app = BeanSerializer.deserialize(inputJson, CWLJobApp.class);
-  }
-
   @Test
   public void testDuplicateInputId()  throws Exception {
     String inputJson = ResourceHelper.readResource(this.getClass(), "duplicate-input-id.cwl");

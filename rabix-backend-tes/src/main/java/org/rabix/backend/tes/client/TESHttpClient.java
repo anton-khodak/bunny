@@ -60,14 +60,9 @@ public class TESHttpClient {
         .scheme(scheme)
         .host(host)
         .port(port)
-<<<<<<< HEAD
-        .addPathSegment("v1/tasks");
-    
-=======
         .addPathSegment("v1")
         .addPathSegment("tasks");
 
->>>>>>> f3d94ec755ccac399da53689e496d91e39286a32
     String serialized = JSONHelper.writeObject(task);
     Request request = new Request.Builder().url(httpURLBuilder.build()).post(RequestBody.create(MediaType.parse("JSON"), serialized)).build();
     try (Response response = httpClient.newCall(request).execute()) {

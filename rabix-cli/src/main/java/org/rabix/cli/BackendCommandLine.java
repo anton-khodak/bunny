@@ -27,13 +27,9 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.lang.StringUtils;
 import org.rabix.backend.api.BackendModule;
-import org.rabix.backend.api.WorkerService;
 import org.rabix.backend.api.callback.WorkerStatusCallback;
 import org.rabix.backend.api.callback.impl.NoOpWorkerStatusCallback;
-import org.rabix.backend.slurm.client.SlurmClient;
-import org.rabix.backend.slurm.service.SlurmWorkerServiceImpl;
-import org.rabix.backend.tes.service.TESStorageService;
-import org.rabix.backend.tes.service.impl.LocalTESStorageServiceImpl;
+import org.rabix.backend.slurm.SlurmModule;
 import org.rabix.cli.service.LocalDownloadServiceImpl;
 import org.rabix.backend.tes.TESModule;
 import org.rabix.bindings.BindingException;
@@ -224,6 +220,7 @@ public class BackendCommandLine {
       Injector injector = Guice.createInjector(
           new EngineModule(configModule),
           new TESModule(configModule),
+          new SlurmModule(configModule),
           new AbstractModule() {
             @Override
             protected void configure() {
@@ -254,12 +251,6 @@ public class BackendCommandLine {
                   System.exit(33);
                 }
               }
-                if (commandLine.hasOption("slurm")){
-                    bind(SlurmClient.class).in(Scopes.SINGLETON);
-                    bind(TESStorageService.class).to(LocalTESStorageServiceImpl.class).in(Scopes.SINGLETON);
-                    bind(WorkerService.class).annotatedWith(SlurmWorkerServiceImpl.SlurmWorker.class).to(SlurmWorkerServiceImpl.class).in(Scopes.SINGLETON);
-
-                }
               bind(BootstrapService.class).to(BootstrapServiceImpl.class).in(Scopes.SINGLETON);
             }
           });
