@@ -9,6 +9,7 @@ import java.util.List;
 import org.rabix.bindings.BindingException;
 import org.rabix.bindings.Bindings;
 import org.rabix.bindings.BindingsFactory;
+import org.rabix.bindings.cwl.bean.CWLCommandLineTool;
 import org.rabix.bindings.cwl.bean.CWLJobApp;
 import org.rabix.bindings.model.Application;
 import org.rabix.bindings.model.Job;
