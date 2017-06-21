@@ -1,5 +1,7 @@
 package org.rabix.backend.slurm.client;
 
+import com.google.inject.Inject;
+import org.apache.commons.configuration.Configuration;
 import org.apache.commons.io.FileUtils;
 import org.rabix.backend.slurm.helpers.CWLJobInputsWriter;
 import org.rabix.backend.slurm.model.SlurmJob;
@@ -16,14 +18,25 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Paths;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 
 public class SlurmClient {
     private final static Logger logger = LoggerFactory.getLogger(SlurmClient.class);
+    private final String rabixWorkerCLI;
+    private String rabixWorkerCLIConfigDir = null;
 
-    public void getState(){
+    @Inject
+    public SlurmClient(final Configuration configuration) {
+        this.rabixWorkerCLI = Paths.get(configuration.getString("rabix.slurm.rabix-worker-cli")).toString();
+        if (configuration.containsKey("rabix.slurm.rabix-worker-cli-config-dir")) {
+            this.rabixWorkerCLIConfigDir = Paths.get(configuration.getString("rabix.slurm.rabix-worker-cli-config-dir")).toString();
+        }
+    }
+
+    public void getState() {
         return;
     }
 
@@ -37,8 +50,10 @@ public class SlurmClient {
             String[] s;
 
             File commandFile = new File("command.sh");
-            FileUtils.writeStringToFile(commandFile, command);
-            String[] commands = {"bash","command.sh"};
+//            FileUtils.writeStringToFile(commandFile, command);
+            // mock command
+            FileUtils.writeStringToFile(commandFile, mockCommand);
+            String[] commands = {"bash", "command.sh"};
             ProcessBuilder pb = new ProcessBuilder(commands);
             pb.redirectErrorStream(true);
             Process p = pb.start();
@@ -86,31 +101,23 @@ public class SlurmClient {
             cwlJob = stripLeadingJSONCharacters(cwlJob);
             File cwlJobFile = new File(workingDir, "job.json");
             FileUtils.writeStringToFile(cwlJobFile, cwlJob);
-
             File inputsFile = CWLJobInputsWriter.createInputsFile(job, workingDir);
-//            String bunnyCLIPath = "java -jar /media/anton/ECFA959BFA95631E2/Programming/SevenBridges/bunny/rabix-cli/test-target/rabix-cli-1.0.0-rc5.jar --configuration-dir /media/anton/ECFA959BFA95631E2/Programming/SevenBridges/bunny/rabix-cli/config2";
-            // TODO: add option for specifying shared file storage location
-            String bunnyCLIPath = "java -jar /vagrant/rabix-cli/test-target/rabix-cli-1.0.0-rc5.jar --configuration-dir /vagrant/rabix-cli/config2";
-            String command = bunnyCLIPath + " " + cwlJobFile.getAbsolutePath() + " " + inputsFile.getAbsolutePath();
-//            command = command.replace("media/anton/ECFA959BFA95631E2/Programming/SevenBridges/bunny/examples/", "vagrant/");
-            slurmCommand += " --wrap=\"" + command + "\"";
+
+            String command = rabixWorkerCLI;
+            if (rabixWorkerCLIConfigDir != null)
+                command += " " + rabixWorkerCLIConfigDir;
+            command += " " + cwlJobFile.getAbsolutePath() + " " + inputsFile.getAbsolutePath();
+//            slurmCommand += " --wrap=\"" + command + "\"";
+            // Mock command
+            slurmCommand = command + ";\necho Submitted batch job 16";
             String s;
             logger.debug("Submitting command: " + slurmCommand);
             File commandFile = new File("command.sh");
             FileUtils.writeStringToFile(commandFile, slurmCommand);
-            String[] commands = {"bash","command.sh"};
+            String[] commands = {"bash", "command.sh"};
             ProcessBuilder pb = new ProcessBuilder(commands);
             pb.redirectErrorStream(true);
             Process p = pb.start();
-
-            // Mock command
-//             String command = "echo Submitted batch job 16";
-//            Process proc = rt.exec(command);
-//            Process proc = rt.exec(slurmCommand);
-//            BufferedReader stdError = new BufferedReader(new
-//                    InputStreamReader(proc.getErrorStream()));
-//            Thread.sleep(1500);
-
             BufferedReader stdInput = new BufferedReader(new
                     InputStreamReader(p.getInputStream()));
             logger.debug("input stream obtained");
@@ -126,17 +133,17 @@ public class SlurmClient {
                     if (m.find()) {
                         jobId = m.group(0).split("\\s")[1];
                         logger.debug("Submitted job " + jobId);
-                    }else {
+                    } else {
                         logger.debug("Submission went unsuccessfully");
                     }
                     output += s;
                 }
             }
-        } catch(IOException e){
+        } catch (IOException e) {
             logger.error("Could not open job file");
             e.printStackTrace(System.err);
             System.exit(10);
-        }catch(BindingException e){
+        } catch (BindingException e) {
             logger.error("Failed to use Bindings", e);
             e.printStackTrace(System.err);
             System.exit(11);
@@ -144,13 +151,13 @@ public class SlurmClient {
         return jobId;
     }
 
-    private static String getSlurmResourceRequirements(ResourceRequirement requirements){
+    private static String getSlurmResourceRequirements(ResourceRequirement requirements) {
         String directive = "";
         if (requirements != null) {
             Long cpuMin = requirements.getCpuMin();
             Long memMin = requirements.getMemMinMB();
             if (cpuMin != null) {
-                directive += " --ntasks-per-node=" + Long.toString(cpuMin);
+//                directive += " --ntasks-per-node=" + Long.toString(cpuMin);
             }
             if (memMin != null) {
 //                directive += " --mem=" + Long.toString(memMin);
@@ -162,10 +169,10 @@ public class SlurmClient {
     /**
      * method for replacing a regexp pattern in a string
      */
-    public static String regexpReplacer(String source, String pattern, String replacer){
+    public static String regexpReplacer(String source, String pattern, String replacer) {
         Pattern r = Pattern.compile(pattern);
         Matcher m = r.matcher(source);
-        if (m.find( )) {
+        if (m.find()) {
             source = source.replace(m.group(0), replacer);
         }
         return source;
@@ -173,10 +180,11 @@ public class SlurmClient {
 
     /**
      * replaces garbage symbols at the beginning of base64 decoded app
-     * @param jsonSource     decoded app
+     *
+     * @param jsonSource decoded app
      * @return input string with stripped garbage symbols
      */
-    private static String stripLeadingJSONCharacters(String jsonSource){
+    private static String stripLeadingJSONCharacters(String jsonSource) {
         String pattern = "^.+(?=\\{)";
         return regexpReplacer(jsonSource, pattern, "");
     }

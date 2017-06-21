@@ -36,15 +36,5 @@
 			<artifactId>rabix-backend-tes</artifactId>
 			<version>${project.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>com.squareup.okhttp3</groupId>
-			<artifactId>okhttp</artifactId>
-			<version>${ok.http.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>org.rabix</groupId>
-			<artifactId>rabix-backend-tes</artifactId>
-			<version>1.0.0-rc5</version>
-		</dependency>
 	</dependencies>
 </project>

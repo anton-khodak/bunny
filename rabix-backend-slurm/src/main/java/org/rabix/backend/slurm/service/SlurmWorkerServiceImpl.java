@@ -15,7 +15,6 @@ import org.rabix.backend.slurm.client.SlurmClient;
 import org.rabix.backend.slurm.client.SlurmClientException;
 import org.rabix.backend.slurm.model.SlurmJob;
 import org.rabix.backend.slurm.model.SlurmState;
-import org.rabix.backend.tes.service.TESStorageService;
 import org.rabix.bindings.BindingException;
 import org.rabix.bindings.Bindings;
 import org.rabix.bindings.BindingsFactory;
@@ -63,7 +62,7 @@ public class SlurmWorkerServiceImpl implements WorkerService {
     @Inject
     private WorkerStatusCallback statusCallback;
     @Inject
-    private TESStorageService storageService;
+    private SlurmStorageService storageService;
     @Inject
     private SlurmClient slurmClient;
 
@@ -90,7 +89,7 @@ public class SlurmWorkerServiceImpl implements WorkerService {
             File workingDir = null;
             for (File file: baseDir.listFiles()){
                 if (file.isDirectory()){
-                    workingDir = file;
+                    workingDir = new File(file, "root");
                 }
             }
             job = bindings.postprocess(job, workingDir, ChecksumHelper.HashAlgorithm.SHA1, null);
@@ -129,7 +128,7 @@ public class SlurmWorkerServiceImpl implements WorkerService {
             @Override
             public void run() {
                 for (Iterator<PendingResult> iterator = pendingResults.iterator(); iterator.hasNext(); ) {
-                    PendingResult pending = (PendingResult) iterator.next();
+                    PendingResult pending = iterator.next();
                     if (pending.future.isDone()) {
                         try {
                             SlurmJob slurmJob = pending.future.get();
